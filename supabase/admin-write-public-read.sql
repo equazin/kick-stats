@@ -5,6 +5,15 @@
 
 begin;
 
+create extension if not exists pgcrypto;
+
+do $$
+begin
+  create type public.vote_type as enum ('mvp', 'goal');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists public.fund_movements (
   id uuid primary key default gen_random_uuid(),
   fecha timestamptz not null default now(),
@@ -13,6 +22,19 @@ create table if not exists public.fund_movements (
   motivo text not null,
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.votes (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches(id) on delete cascade,
+  voter_player_id uuid not null references public.players(id) on delete cascade,
+  voted_player_id uuid not null references public.players(id) on delete cascade,
+  type public.vote_type not null,
+  created_at timestamptz not null default now(),
+  check (voter_player_id <> voted_player_id),
+  unique (match_id, voter_player_id, type)
+);
+
+create index if not exists idx_votes_match_type on public.votes(match_id, type);
 
 -- Tables controlled by admin only for writes
 alter table if exists public.players enable row level security;
