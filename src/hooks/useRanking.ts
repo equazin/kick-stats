@@ -565,7 +565,7 @@ const withTimeout = async <T>(promise: Promise<T>, label: string): Promise<T> =>
 
 const emptyQueryResult = <T,>() => ({ data: [] as T[], error: null });
 
-const fromUntypedTable = supabase.from as unknown as (table: string) => {
+const fromUntypedTable = (table: string) => (supabase as any).from(table) as {
   select: (columns: string) => PromiseLike<{
     data: unknown[] | null;
     error: Error | null;
