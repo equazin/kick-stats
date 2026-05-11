@@ -10,6 +10,7 @@ export const useVotes = (matchId?: string) =>
   useQuery({
     queryKey: ["votes", matchId],
     enabled: !!matchId,
+    refetchInterval: matchId ? 10_000 : false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("votes")

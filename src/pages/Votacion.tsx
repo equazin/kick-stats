@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Vote, Star, Goal, Check, ArrowLeft, Sparkles, Trophy } from "lucide-react";
+import { Vote, Star, Goal, Check, ArrowLeft, Sparkles, Users } from "lucide-react";
 import { fmtPartidoSinHora, fmtHora } from "@/lib/dates";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getVotingDeadline, isVotingOpenForMatch, useMatches, useMatchPlayers } from "@/hooks/useMatches";
-import { usePlayers } from "@/hooks/usePlayers";
-import { useVotes, useHasVoted, useCastVotes, tallyVotes } from "@/hooks/useVotes";
+import { useVotes, useHasVoted, useCastVotes } from "@/hooks/useVotes";
 
 type Step = "match" | "identify" | "vote" | "done";
 
 const Votacion = () => {
   const { data: matches = [] } = useMatches();
-  const { data: players = [] } = usePlayers();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -21,10 +19,9 @@ const Votacion = () => {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Solo partidos oficiales jugados dentro de las 48 horas posteriores.
   const votables = useMemo(
     () => matches.filter((m) => isVotingOpenForMatch(m, now)),
-    [matches, now]
+    [matches, now],
   );
 
   const [step, setStep] = useState<Step>("match");
@@ -50,26 +47,25 @@ const Votacion = () => {
 
   const officialPresentRows = useMemo(
     () => mp.filter((r: any) => r.presente && r.player?.tipo !== "invitado"),
-    [mp]
+    [mp],
   );
   const votablesPresentes = useMemo(
     () => officialPresentRows.map((r: any) => r.player),
-    [officialPresentRows]
+    [officialPresentRows],
   );
   const votablePlayerIds = useMemo(
     () => new Set(votablesPresentes.map((p: any) => p.id)),
-    [votablesPresentes]
+    [votablesPresentes],
   );
   const mvpCandidates = useMemo(
     () => officialPresentRows.filter((r: any) => r.equipo === winnerTeam).map((r: any) => r.player),
-    [officialPresentRows, winnerTeam]
+    [officialPresentRows, winnerTeam],
   );
   const mvpCandidateIds = useMemo(
     () => new Set(mvpCandidates.map((p: any) => p.id)),
-    [mvpCandidates]
+    [mvpCandidates],
   );
 
-  // Si ya votó este jugador, saltar a "done" para mostrar resultados
   useEffect(() => {
     if (voted?.mvp && voted?.goal) setStep("done");
   }, [voted]);
@@ -94,42 +90,41 @@ const Votacion = () => {
     }
     try {
       await castMut.mutateAsync({ matchId, voterId, mvpVotedId: mvpVote, goalVotedId: goalVote });
-      toast.success("¡Votos registrados!");
+      toast.success("Votos registrados");
       setStep("done");
     } catch (e: any) {
-      toast.error(e.message ?? "No se pudo registrar la votación");
+      toast.error(e.message ?? "No se pudo registrar la votacion");
     }
   };
 
-  // Resultados en vivo
-  const eligibleMvpVotes = useMemo(
-    () => votes.filter((vote) => mvpCandidateIds.has(vote.voted_player_id)),
-    [votes, mvpCandidateIds]
-  );
-  const eligibleGoalVotes = useMemo(
-    () => votes.filter((vote) => votablePlayerIds.has(vote.voted_player_id)),
-    [votes, votablePlayerIds]
-  );
-  const mvpTally = useMemo(() => tallyVotes(eligibleMvpVotes, "mvp"), [eligibleMvpVotes]);
-  const goalTally = useMemo(() => tallyVotes(eligibleGoalVotes, "goal"), [eligibleGoalVotes]);
-  const totalVoters = useMemo(
-    () => new Set([...eligibleMvpVotes, ...eligibleGoalVotes].map((v) => v.voter_player_id)).size,
-    [eligibleMvpVotes, eligibleGoalVotes]
-  );
+  const votersList = useMemo(() => {
+    const voteTypesByVoter = new Map<string, Set<string>>();
+    votes.forEach((vote) => {
+      const entry = voteTypesByVoter.get(vote.voter_player_id) ?? new Set<string>();
+      entry.add(vote.type);
+      voteTypesByVoter.set(vote.voter_player_id, entry);
+    });
 
-  const playerById = (id: string) => players.find((p) => p.id === id);
+    return votablesPresentes
+      .filter((player: any) => {
+        const types = voteTypesByVoter.get(player.id);
+        return types?.has("mvp") && types?.has("goal");
+      })
+      .sort((a: any, b: any) => (a.apodo ?? a.nombre).localeCompare(b.apodo ?? b.nombre));
+  }, [votablesPresentes, votes]);
+
+  const totalVoters = votersList.length;
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl md:text-3xl font-black flex items-center gap-2">
           <Vote className="h-6 w-6 text-mvp" />
-          Votación
+          Votacion
         </h1>
         <p className="text-sm text-muted-foreground">MVP y Gol de la fecha</p>
       </header>
 
-      {/* PASO 1: ELEGIR PARTIDO */}
       {step === "match" && (
         <>
           {votables.length === 0 ? (
@@ -141,7 +136,7 @@ const Votacion = () => {
           ) : (
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
-                Elegí el partido
+                Elegi el partido
               </p>
               {votables.map((m) => (
                 <button
@@ -179,7 +174,6 @@ const Votacion = () => {
         </>
       )}
 
-      {/* PASO 2: IDENTIFICARSE */}
       {step === "identify" && selectedMatch && (
         <div className="space-y-4">
           <Button variant="ghost" size="sm" onClick={() => setStep("match")}>
@@ -194,7 +188,7 @@ const Votacion = () => {
             </p>
           </div>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
-            ¿Quién sos?
+            Quien sos?
           </p>
           {votablesPresentes.length === 0 ? (
             <EmptyState
@@ -224,7 +218,6 @@ const Votacion = () => {
         </div>
       )}
 
-      {/* PASO 3: VOTAR */}
       {step === "vote" && voterId && (
         <div className="space-y-5">
           <Button variant="ghost" size="sm" onClick={() => setStep("identify")}>
@@ -236,12 +229,11 @@ const Votacion = () => {
               <Check className="h-8 w-8 text-mvp mx-auto mb-2" />
               <p className="font-black">Ya votaste en este partido</p>
               <Button variant="link" onClick={() => setStep("done")} className="mt-2">
-                Ver resultados →
+                Ver quienes votaron
               </Button>
             </div>
           ) : (
             <>
-              {/* MVP */}
               <div className="rounded-xl border border-mvp/30 bg-gradient-card p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="h-5 w-5 text-mvp" />
@@ -279,7 +271,6 @@ const Votacion = () => {
                 )}
               </div>
 
-              {/* GOL */}
               <div className="rounded-xl border border-stats/30 bg-gradient-card p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Goal className="h-5 w-5 text-stats" />
@@ -329,83 +320,40 @@ const Votacion = () => {
         </div>
       )}
 
-      {/* PASO 4: RESULTADOS */}
       {step === "done" && selectedMatch && (
         <div className="space-y-4">
           <div className="rounded-xl border border-mvp/30 bg-mvp/10 p-4 text-center">
             <Check className="h-8 w-8 text-mvp mx-auto mb-2" />
-            <p className="font-black">¡Gracias por votar!</p>
+            <p className="font-black">Gracias por votar</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {totalVoters} {totalVoters === 1 ? "jugador votó" : "jugadores votaron"} hasta ahora
+              {totalVoters} {totalVoters === 1 ? "jugador voto" : "jugadores votaron"} hasta ahora
             </p>
           </div>
 
-          {/* Tally MVP */}
           <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Trophy className="h-4 w-4 text-mvp" />
-              <h3 className="font-black">Conteo MVP en vivo</h3>
+              <Users className="h-4 w-4 text-mvp" />
+              <h3 className="font-black">Ya votaron</h3>
             </div>
-            {mvpTally.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-2">Sin votos todavía</p>
+            {votersList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-2">Todavia no figura ningun voto.</p>
             ) : (
-              <div className="space-y-2">
-                {mvpTally.map((t, i) => {
-                  const p = playerById(t.player_id);
-                  if (!p) return null;
-                  const pct = totalVoters ? (t.count / totalVoters) * 100 : 0;
-                  return (
-                    <div key={t.player_id} className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-muted-foreground w-4">{i + 1}</span>
-                        <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
-                        <p className="font-bold text-sm flex-1 truncate">{p.apodo ?? p.nombre}</p>
-                        <span className="text-sm font-black text-mvp">{t.count}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                        <div className="h-full bg-mvp transition-all" style={{ width: `${pct}%` }} />
-                      </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {votersList.map((p: any) => (
+                  <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/50 p-2">
+                    <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm truncate">{p.apodo ?? p.nombre}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-primary font-bold">Voto registrado</p>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Tally Gol */}
-          <div className="rounded-xl border border-border/60 bg-gradient-card p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Goal className="h-4 w-4 text-stats" />
-              <h3 className="font-black">Conteo Gol de la fecha</h3>
-            </div>
-            {goalTally.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-2">Sin votos todavía</p>
-            ) : (
-              <div className="space-y-2">
-                {goalTally.map((t, i) => {
-                  const p = playerById(t.player_id);
-                  if (!p) return null;
-                  const pct = totalVoters ? (t.count / totalVoters) * 100 : 0;
-                  return (
-                    <div key={t.player_id} className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-muted-foreground w-4">{i + 1}</span>
-                        <PlayerAvatar nombre={p.nombre} foto_url={p.foto_url} size="sm" />
-                        <p className="font-bold text-sm flex-1 truncate">{p.apodo ?? p.nombre}</p>
-                        <span className="text-sm font-black text-stats">{t.count}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                        <div className="h-full bg-stats transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
-            Los ganadores se asignan al cerrar el partido desde su detalle.
+            Los resultados quedan ocultos hasta que el admin cierre la votacion.
           </p>
           <Button variant="outline" onClick={reset} className="w-full">
             Votar en otro partido
