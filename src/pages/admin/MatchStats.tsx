@@ -26,6 +26,7 @@ import {
   useMatchPlayers,
   useSaveMatchPlayers,
   useUpdateMatch,
+  buildVotingWindowPatch,
   type MatchPlayerInput,
 } from "@/hooks/useMatches";
 import { usePlayers, type Player } from "@/hooks/usePlayers";
@@ -62,14 +63,6 @@ const toDateTimeLocalValue = (value?: string | null) => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
-
-const voteWindowFor = (fechaIso: string, estado: string) =>
-  estado === "jugado"
-    ? {
-        votacion_abre: fechaIso,
-        votacion_cierra: new Date(new Date(fechaIso).getTime() + 48 * 60 * 60 * 1000).toISOString(),
-      }
-    : {};
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -317,7 +310,7 @@ const MatchStats = () => {
           id,
           estado: nextEstado as any,
           ...scorePatch,
-          ...voteWindowFor(fechaIso!, nextEstado),
+          ...buildVotingWindowPatch(fechaIso!, nextEstado),
         } as any);
         setEstado(nextEstado);
         setScoreA(nextScoreA);
@@ -348,7 +341,7 @@ const MatchStats = () => {
         estado: estado as any,
         mvp_player_id: isFriendly || mvpId === "none" ? null : mvpId,
         gol_de_la_fecha_player_id: isFriendly || golFechaId === "none" ? null : golFechaId,
-        ...voteWindowFor(fechaIso, estado),
+        ...buildVotingWindowPatch(fechaIso, estado),
       } as any);
       toast.success(estado === "pendiente" ? "Partido guardado" : "Partido guardado · ELO actualizado");
     } catch (e: any) {
@@ -371,7 +364,7 @@ const MatchStats = () => {
       await updateMut.mutateAsync({
         id,
         fecha: fechaIso,
-        ...voteWindowFor(fechaIso, estado),
+        ...buildVotingWindowPatch(fechaIso, estado),
       } as any);
       toast.success("Fecha actualizada");
     } catch (e: any) {

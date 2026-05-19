@@ -4,31 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { FONDO } from "@/lib/scoring";
 import { avgElo, expectedScore, newElo, teamResult, ELO_INICIAL } from "@/lib/elo";
+import { isVotingExpiredForMatch } from "@/lib/voting";
+export {
+  buildVotingWindowPatch,
+  getVotingDeadline,
+  isVotingOpenForMatch,
+  isVotingExpiredForMatch,
+  VOTING_WINDOW_MS,
+} from "@/lib/voting";
 
 export type Match = Database["public"]["Tables"]["matches"]["Row"];
 export type MatchInsert = Database["public"]["Tables"]["matches"]["Insert"];
 export type MatchPlayer = Database["public"]["Tables"]["match_players"]["Row"];
-
-export const VOTING_WINDOW_MS = 48 * 60 * 60 * 1000;
-
-export const getVotingDeadline = (match: Pick<Match, "fecha" | "votacion_cierra">) => {
-  const explicitDeadline = match.votacion_cierra ? new Date(match.votacion_cierra).getTime() : NaN;
-  if (!Number.isNaN(explicitDeadline)) return explicitDeadline;
-  return new Date(match.fecha).getTime() + VOTING_WINDOW_MS;
-};
-
-export const isVotingOpenForMatch = (match: Match, now = Date.now()) => {
-  const openAt = match.votacion_abre ? new Date(match.votacion_abre).getTime() : new Date(match.fecha).getTime();
-  const deadline = getVotingDeadline(match);
-  if (Number.isNaN(openAt) || Number.isNaN(deadline)) return false;
-  return match.estado === "jugado" && !(match as any).is_friendly && now >= openAt && now < deadline;
-};
-
-export const isVotingExpiredForMatch = (match: Match, now = Date.now()) => {
-  const deadline = getVotingDeadline(match);
-  if (Number.isNaN(deadline)) return false;
-  return match.estado === "jugado" && !(match as any).is_friendly && now >= deadline;
-};
 
 export const useMatches = () =>
   useQuery({
